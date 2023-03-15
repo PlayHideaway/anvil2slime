@@ -3,11 +3,12 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
-	"github.com/astei/anvil2slime/nbt"
-	"github.com/klauspost/compress/zstd"
 	"io"
 	"io/ioutil"
 	"sort"
+
+	"github.com/astei/anvil2slime/nbt"
+	"github.com/klauspost/compress/zstd"
 )
 
 const slimeHeader = 0xB10B
@@ -220,7 +221,7 @@ func (w *slimeWriter) writeEntities() (err error) {
 
 func (w *slimeWriter) writeCompressedNbt(compound interface{}) (err error) {
 	var buf bytes.Buffer
-	if err = nbt.NewEncoder(&buf).Encode(compound); err != nil {
+	if err = nbt.NewEncoder(&buf).Encode(compound, ""); err != nil {
 		return
 	}
 	return w.writeZstdCompressed(&buf)

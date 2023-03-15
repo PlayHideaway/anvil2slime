@@ -3,11 +3,10 @@
 package nbt
 
 import (
-	"bufio"
 	"io"
 )
 
-//Tag type IDs
+// Tag type IDs
 const (
 	TagEnd byte = iota
 	TagByte
@@ -22,14 +21,20 @@ const (
 	TagCompound
 	TagIntArray
 	TagLongArray
+	TagNone = 0xFF
 )
 
+func IsArrayTag(ty byte) bool {
+	return ty == TagByteArray || ty == TagIntArray || ty == TagLongArray
+}
+
 type DecoderReader = interface {
-	io.ByteScanner
+	io.ByteReader
 	io.Reader
 }
 type Decoder struct {
-	r DecoderReader
+	r                     DecoderReader
+	disallowUnknownFields bool
 }
 
 func NewDecoder(r io.Reader) *Decoder {
@@ -37,7 +42,26 @@ func NewDecoder(r io.Reader) *Decoder {
 	if br, ok := r.(DecoderReader); ok {
 		d.r = br
 	} else {
-		d.r = bufio.NewReader(r)
+		d.r = reader{r}
 	}
 	return d
+}
+
+// DisallowUnknownFields makes the decoder return an error when unmarshalling a compound
+// tag item that has a tag name not present in the destination struct.
+func (d *Decoder) DisallowUnknownFields() {
+	d.disallowUnknownFields = true
+}
+
+type reader struct {
+	io.Reader
+}
+
+func (r reader) ReadByte() (byte, error) {
+	var b [1]byte
+	n, err := r.Read(b[:])
+	if n == 1 {
+		return b[0], nil
+	}
+	return 0, err
 }

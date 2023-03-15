@@ -88,7 +88,7 @@ func tryToReadRegion(reader *AnvilReader) (*map[ChunkCoord]MinecraftChunk, error
 				}
 
 				var anvilChunkRoot MinecraftChunkRoot
-				if err = nbt.NewDecoder(chunkReader).Decode(&anvilChunkRoot); err != nil {
+				if _, err = nbt.NewDecoder(chunkReader).Decode(&anvilChunkRoot); err != nil {
 					return nil, fmt.Errorf("could not deserialize chunk %d,%d in %s: %s", x, z, reader.Name, err.Error())
 				}
 
