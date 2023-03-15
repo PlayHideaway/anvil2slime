@@ -22,7 +22,7 @@ type AnvilCompressionLevel byte
 
 const (
 	AnvilCompressionLevelGzip    AnvilCompressionLevel = 1
-	AnvilCompressionLevelDeflate                       = 2
+	AnvilCompressionLevelDeflate AnvilCompressionLevel = 2
 )
 
 // Struct AnvilReader allows you to read an Anvil region file and extract its components. The reader is not safe for

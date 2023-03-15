@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"io"
-	"io/ioutil"
 	"sort"
 
 	"github.com/astei/anvil2slime/nbt"
@@ -19,7 +18,7 @@ func slimeChunkKey(coord ChunkCoord) int64 {
 }
 
 func (world *AnvilWorld) WriteAsSlime(writer io.Writer) error {
-	zstdWriter, err := zstd.NewWriter(ioutil.Discard)
+	zstdWriter, err := zstd.NewWriter(io.Discard)
 	if err != nil {
 		return err
 	}
@@ -144,7 +143,6 @@ func (w *slimeWriter) writeChunkSectionsPopulatedBitmask(chunk MinecraftChunk, o
 		sectionsPopulated.Set(int(section.Y))
 	}
 	_, _ = out.Write(sectionsPopulated.Bytes())
-	return
 }
 
 func (w *slimeWriter) writeChunkSection(section MinecraftChunkSection, out io.Writer) (err error) {
@@ -177,7 +175,7 @@ func (w *slimeWriter) writeZstdCompressed(buf *bytes.Buffer) (err error) {
 	if err = w.zstdWriter.Close(); err != nil {
 		return
 	}
-	w.zstdWriter.Reset(ioutil.Discard)
+	w.zstdWriter.Reset(io.Discard)
 
 	if err = binary.Write(w.writer, binary.BigEndian, uint32(compressedOutput.Len())); err != nil {
 		return

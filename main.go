@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
-	"github.com/urfave/cli/v2"
 	"log"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/urfave/cli/v2"
 )
 
 func main() {
@@ -42,7 +43,7 @@ func processAnvilWorld(path string, saveTo string) (err error) {
 	if err != nil {
 		return err
 	}
-	loadAnvilDuration := time.Now().Sub(startAnvilLoad).Milliseconds()
+	loadAnvilDuration := time.Since(startAnvilLoad).Milliseconds()
 	fmt.Printf("Anvil world loaded in %dms\n", loadAnvilDuration)
 
 	if saveTo == "" {
@@ -56,7 +57,7 @@ func processAnvilWorld(path string, saveTo string) (err error) {
 	if err = world.WriteAsSlime(outputFile); err != nil {
 		return err
 	}
-	slimeSaveDuration := time.Now().Sub(startSlimeSave).Milliseconds()
+	slimeSaveDuration := time.Since(startSlimeSave).Milliseconds()
 	fmt.Printf("Slime world saved in %dms\n", slimeSaveDuration)
 
 	err = outputFile.Close()
