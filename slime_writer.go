@@ -11,7 +11,7 @@ import (
 )
 
 const slimeHeader = 0xB10B
-const slimeLatestVersion = 3
+const slimeLatestVersion = 1
 
 func slimeChunkKey(coord ChunkCoord) int64 {
 	return (int64(coord.Z) * 0x7fffffff) + int64(coord.X)
@@ -48,56 +48,20 @@ func (w *slimeWriter) writeWorld() (err error) {
 	if err = w.writeExtra(); err != nil {
 		return
 	}
-
 	return
 }
 
 func (w *slimeWriter) writeHeader() (err error) {
-	minChunkXZ, width, depth := w.determineChunkBounds()
-	used := w.createChunkBitset(width, depth, minChunkXZ)
-
 	var header struct {
 		Magic   uint16
 		Version uint8
-		MinX    int16
-		MinZ    int16
-		Width   uint16
-		Depth   uint16
 	}
 	header.Magic = slimeHeader
 	header.Version = slimeLatestVersion
-	header.MinX = int16(minChunkXZ.X)
-	header.MinZ = int16(minChunkXZ.Z)
-	header.Width = uint16(width)
-	header.Depth = uint16(depth)
-
 	if err = binary.Write(w.writer, binary.BigEndian, header); err != nil {
 		return
 	}
-	_, err = w.writer.Write(used)
 	return
-}
-
-func (w *slimeWriter) createChunkBitset(width int, depth int, minChunkXZ ChunkCoord) []byte {
-	chunkCoords := w.world.getChunkKeys()
-	populated := newFixedBitSet(width * depth)
-	for _, currentChunk := range chunkCoords {
-		relZ := currentChunk.Z - minChunkXZ.Z
-		relX := currentChunk.X - minChunkXZ.X
-		idx := relZ*width + relX
-		populated.Set(idx)
-	}
-
-	return populated.Bytes()
-}
-
-func (w *slimeWriter) determineChunkBounds() (minChunkXZ ChunkCoord, width int, depth int) {
-	// Slime uses its own order for chunks, but still requires us to determine the maximum/minimum XZ coordinates.
-	minX, maxX, minZ, maxZ := w.world.getMinXZ()
-
-	width = maxX - minX + 1
-	depth = maxZ - minZ + 1
-	return ChunkCoord{X: minX, Z: minZ}, width, depth
 }
 
 func (w *slimeWriter) writeChunks() (err error) {
@@ -107,7 +71,6 @@ func (w *slimeWriter) writeChunks() (err error) {
 		k2 := slimeChunkKey(slimeSorted[two])
 		return k1 < k2
 	})
-
 	var out bytes.Buffer
 	for _, coord := range slimeSorted {
 		chunk := w.world.chunks[coord]
@@ -120,7 +83,6 @@ func (w *slimeWriter) writeChunks() (err error) {
 			}
 		}
 	}
-
 	return w.writeZstdCompressed(&out)
 }
 
@@ -205,12 +167,10 @@ func (w *slimeWriter) writeEntities() (err error) {
 	for _, chunk := range w.world.chunks {
 		entities = append(entities, chunk.Entities...)
 	}
-
 	var compound struct {
 		Entities []interface{} `nbt:"entities"`
 	}
 	compound.Entities = entities
-
 	if _, err = w.writer.Write([]byte{1}); err != nil {
 		return
 	}
@@ -237,22 +197,4 @@ func (world *AnvilWorld) getChunkKeys() []ChunkCoord {
 		keys = append(keys, coord)
 	}
 	return keys
-}
-
-func (world *AnvilWorld) getMinXZ() (minX int, maxX int, minZ int, maxZ int) {
-	keys := world.getChunkKeys()
-
-	sort.Slice(keys, func(one, two int) bool {
-		c1 := keys[one]
-		c2 := keys[two]
-		return c1.X < c2.X
-	})
-	minX = keys[0].X
-	maxX = keys[len(keys)-1].X
-	sort.Slice(keys, func(one, two int) bool {
-		return keys[one].Z < keys[two].Z
-	})
-	minZ = keys[0].Z
-	maxZ = keys[len(keys)-1].Z
-	return
 }
