@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 
@@ -68,39 +69,45 @@ func (world *AnvilReader) readSectorTable() (err error) {
 // region file and are not chunk coordinates. If successful, the provided reader may be provided to an NBT deserialization
 // routine.
 func (world *AnvilReader) ReadChunk(x, z int) (chunk io.Reader, err error) {
-	offset := world.sectorTable[x+z*32]
+	location := world.sectorTable[x+z*32]
 
-	sectorNumber := offset >> 8
-	occupiedSectors := offset & 0xff
-	if sectorNumber == 0 {
+	start := location >> 8
+	if start == 0 {
 		err = ErrNoChunk
 		return
 	}
 
-	if _, err = world.source.Seek(int64(sectorNumber*anvilSectorSize), io.SeekStart); err != nil {
-		return
+	if _, err = world.source.Seek(int64(start*anvilSectorSize), io.SeekStart); err != nil {
+		return nil, fmt.Errorf("failed to seek: %s", err.Error())
 	}
 
-	sectorData := make([]byte, occupiedSectors*anvilSectorSize)
-	if _, err = io.ReadFull(world.source, sectorData); err != nil {
-		return
+	// Payload Header
+
+	payloadHeader := make([]byte, 5)
+	if _, err = io.ReadFull(world.source, payloadHeader); err != nil {
+		return nil, fmt.Errorf("could not read payload header: %s", err.Error())
 	}
 
-	sectorReader := bytes.NewReader(sectorData)
-	var sectorHeader struct {
+	var payloadInfo struct {
 		Length      int32
 		Compression AnvilCompressionLevel
 	}
-	if err = binary.Read(sectorReader, binary.BigEndian, &sectorHeader); err != nil {
-		return
+
+	payloadHeaderReader := bytes.NewReader(payloadHeader)
+	if err = binary.Read(payloadHeaderReader, binary.BigEndian, &payloadInfo); err != nil {
+		return nil, fmt.Errorf("could not parse payload header: %s", err.Error())
 	}
 
-	if sectorHeader.Length > int32(len(sectorData)-5) {
-		return nil, ErrInvalidChunkLength
+	// Payload
+
+	payloadData := make([]byte, payloadInfo.Length-1)
+	if _, err = io.ReadFull(world.source, payloadData); err != nil {
+		return nil, fmt.Errorf("could not read payload data: %s", err.Error())
 	}
 
-	chunkStream := io.LimitReader(sectorReader, int64(sectorHeader.Length))
-	switch sectorHeader.Compression {
+	payloadReader := bytes.NewReader(payloadData)
+	chunkStream := io.LimitReader(payloadReader, int64(payloadInfo.Length-1))
+	switch payloadInfo.Compression {
 	case AnvilCompressionLevelGzip:
 		return gzip.NewReader(chunkStream)
 	case AnvilCompressionLevelDeflate:

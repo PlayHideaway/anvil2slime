@@ -84,31 +84,33 @@ func tryToReadRegion(reader *AnvilReader) (*map[ChunkCoord]MinecraftChunk, error
 					return nil, fmt.Errorf("could not read chunk %d,%d in %s: %s", x, z, reader.Name, err.Error())
 				}
 
-				var anvilChunkRoot MinecraftChunkRoot
+				var anvilChunkRoot MinecraftChunk
 				if _, err = nbt.NewDecoder(chunkReader).Decode(&anvilChunkRoot); err != nil {
 					return nil, fmt.Errorf("could not deserialize chunk %d,%d in %s: %s", x, z, reader.Name, err.Error())
 				}
 
 				var cleanedSections []MinecraftChunkSection
-				for _, section := range anvilChunkRoot.Level.Sections {
+				for _, section := range anvilChunkRoot.Sections {
 					if section.BlockStates != nil {
 						cleanedSections = append(cleanedSections, section)
 
-						if len(section.BlockLight) != 2048 {
+						if section.BlockLight != nil && len(section.BlockLight) != 2048 {
 							return nil, fmt.Errorf("could not deserialize chunk %d,%d in %s: invalid block light size", x, z, reader.Name)
 						}
-						if len(section.SkyLight) != 2048 {
+
+						if section.SkyLight != nil && len(section.SkyLight) != 2048 {
 							return nil, fmt.Errorf("could not deserialize chunk %d,%d in %s: invalid sky light size", x, z, reader.Name)
 						}
 					}
 				}
-				anvilChunkRoot.Level.Sections = cleanedSections
-				if len(anvilChunkRoot.Level.Sections) == 0 {
+
+				anvilChunkRoot.Sections = cleanedSections
+				if len(anvilChunkRoot.Sections) == 0 {
 					continue
 				}
 
-				coords := ChunkCoord{X: anvilChunkRoot.Level.X, Z: anvilChunkRoot.Level.Z}
-				byXZ[coords] = anvilChunkRoot.Level
+				coords := ChunkCoord{X: anvilChunkRoot.X, Z: anvilChunkRoot.Z}
+				byXZ[coords] = anvilChunkRoot
 			}
 		}
 	}
