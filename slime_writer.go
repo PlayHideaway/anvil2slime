@@ -87,37 +87,30 @@ func (w *slimeWriter) writeChunks() (err error) {
 }
 
 func (w *slimeWriter) writeChunkHeader(chunk MinecraftChunk, out io.Writer) (err error) {
-	for _, heightEntry := range chunk.HeightMap {
-		if err = binary.Write(out, binary.BigEndian, int32(heightEntry)); err != nil {
-			return
-		}
-	}
-	if _, err = out.Write(chunk.Biomes); err != nil {
-		return
-	}
-	w.writeChunkSectionsPopulatedBitmask(chunk, out)
-	return
-}
+	x := make([]byte, 8)
+	binary.BigEndian.PutUint64(x, uint64(chunk.X))
 
-func (w *slimeWriter) writeChunkSectionsPopulatedBitmask(chunk MinecraftChunk, out io.Writer) {
-	sectionsPopulated := newFixedBitSet(16)
-	for _, section := range chunk.Sections {
-		sectionsPopulated.Set(int(section.Y))
-	}
-	_, _ = out.Write(sectionsPopulated.Bytes())
+	z := make([]byte, 8)
+	binary.BigEndian.PutUint64(z, uint64(chunk.Z))
+
+	out.Write(x)
+	out.Write(z)
+
+	w.writeCompressedNbt(chunk.HeightMap)
+	return
 }
 
 func (w *slimeWriter) writeChunkSection(section MinecraftChunkSection, out io.Writer) (err error) {
 	if _, err = out.Write(section.BlockLight); err != nil {
 		return
 	}
-	if _, err = out.Write(section.Blocks); err != nil {
-		return
-	}
-	if _, err = out.Write(section.Data); err != nil {
-		return
-	}
 	if _, err = out.Write(section.SkyLight); err != nil {
+		return
+	}
+	if err = w.writeCompressedNbt(section.BlockStates); err != nil {
+		return
+	}
+	if err = w.writeCompressedNbt(section.Biomes); err != nil {
 		return
 	}
 	if err = binary.Write(out, binary.BigEndian, uint16(0)); err != nil {

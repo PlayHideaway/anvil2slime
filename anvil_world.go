@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,8 +9,6 @@ import (
 
 	"github.com/astei/anvil2slime/nbt"
 )
-
-var blank [4096]byte
 
 type ChunkCoord struct {
 	X int
@@ -94,35 +91,20 @@ func tryToReadRegion(reader *AnvilReader) (*map[ChunkCoord]MinecraftChunk, error
 
 				var cleanedSections []MinecraftChunkSection
 				for _, section := range anvilChunkRoot.Level.Sections {
-					if !bytes.Equal(blank[:], section.Blocks) {
+					if section.BlockStates != nil {
 						cleanedSections = append(cleanedSections, section)
 
-						if len(section.Blocks) != 4096 {
-							return nil, fmt.Errorf("could not deserialize chunk %d,%d in %s: invalid blocks size", x, z, reader.Name)
-						}
 						if len(section.BlockLight) != 2048 {
 							return nil, fmt.Errorf("could not deserialize chunk %d,%d in %s: invalid block light size", x, z, reader.Name)
 						}
 						if len(section.SkyLight) != 2048 {
 							return nil, fmt.Errorf("could not deserialize chunk %d,%d in %s: invalid sky light size", x, z, reader.Name)
 						}
-						if len(section.Data) != 2048 {
-							return nil, fmt.Errorf("could not deserialize chunk %d,%d in %s: invalid block data size", x, z, reader.Name)
-						}
-
 					}
 				}
 				anvilChunkRoot.Level.Sections = cleanedSections
 				if len(anvilChunkRoot.Level.Sections) == 0 {
 					continue
-				}
-
-				// further sanity checks...
-				if len(anvilChunkRoot.Level.HeightMap) != 256 {
-					return nil, fmt.Errorf("could not deserialize chunk %d,%d in %s: invalid height map size", x, z, reader.Name)
-				}
-				if len(anvilChunkRoot.Level.Biomes) != 256 {
-					return nil, fmt.Errorf("could not deserialize chunk %d,%d in %s: invalid biome size", x, z, reader.Name)
 				}
 
 				coords := ChunkCoord{X: anvilChunkRoot.Level.X, Z: anvilChunkRoot.Level.Z}
