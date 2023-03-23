@@ -89,10 +89,17 @@ func tryToReadRegion(reader *AnvilReader) (*map[ChunkCoord]MinecraftChunk, error
 					return nil, fmt.Errorf("could not deserialize chunk %d,%d in %s: %s", x, z, reader.Name, err.Error())
 				}
 
+				var empty = true
+
 				var cleanedSections []MinecraftChunkSection
 				for _, section := range anvilChunkRoot.Sections {
 					if section.BlockStates != nil {
 						cleanedSections = append(cleanedSections, section)
+
+						var blockStates map[string]interface{} = section.BlockStates.(map[string]interface{})
+						if blockStates["data"] != nil && len(blockStates["data"].([]int64)) == 256 {
+							empty = false
+						}
 
 						if section.BlockLight != nil && len(section.BlockLight) != 2048 {
 							return nil, fmt.Errorf("could not deserialize chunk %d,%d in %s: invalid block light size", x, z, reader.Name)
@@ -106,6 +113,11 @@ func tryToReadRegion(reader *AnvilReader) (*map[ChunkCoord]MinecraftChunk, error
 
 				anvilChunkRoot.Sections = cleanedSections
 				if len(anvilChunkRoot.Sections) == 0 {
+					continue
+				}
+
+				if empty {
+					// fmt.Printf("skipping chunk %d,%d as it is empty!\n", x, z)
 					continue
 				}
 

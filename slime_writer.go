@@ -56,11 +56,14 @@ func (w *slimeWriter) writeHeader() (err error) {
 		Magic   uint16
 		Version uint8
 	}
+
 	header.Magic = slimeHeader
 	header.Version = slimeLatestVersion
+
 	if err = binary.Write(w.writer, binary.BigEndian, header); err != nil {
 		return
 	}
+
 	return
 }
 
@@ -71,51 +74,83 @@ func (w *slimeWriter) writeChunks() (err error) {
 		k2 := slimeChunkKey(slimeSorted[two])
 		return k1 < k2
 	})
+
 	var out bytes.Buffer
+
+	if err = binary.Write(&out, binary.BigEndian, uint32(len(slimeSorted))); err != nil {
+		return
+	}
+
 	for _, coord := range slimeSorted {
 		chunk := w.world.chunks[coord]
 		if err = w.writeChunkHeader(chunk, &out); err != nil {
 			return
 		}
+
+		if err = binary.Write(&out, binary.BigEndian, uint32(len(chunk.Sections))); err != nil {
+			return
+		}
+
 		for _, section := range chunk.Sections {
 			if err = w.writeChunkSection(section, &out); err != nil {
 				return
 			}
 		}
 	}
+
 	return w.writeZstdCompressed(&out)
 }
 
 func (w *slimeWriter) writeChunkHeader(chunk MinecraftChunk, out io.Writer) (err error) {
-	x := make([]byte, 8)
-	binary.BigEndian.PutUint64(x, uint64(chunk.X))
+	if err = binary.Write(out, binary.BigEndian, uint32(chunk.X)); err != nil {
+		return
+	}
 
-	z := make([]byte, 8)
-	binary.BigEndian.PutUint64(z, uint64(chunk.Z))
+	if err = binary.Write(out, binary.BigEndian, uint32(chunk.Z)); err != nil {
+		return
+	}
 
-	out.Write(x)
-	out.Write(z)
-
-	w.writeCompressedNbt(chunk.HeightMap)
+	w.writeNbt(chunk.HeightMap, "Heightmaps", out)
 	return
 }
 
 func (w *slimeWriter) writeChunkSection(section MinecraftChunkSection, out io.Writer) (err error) {
-	if _, err = out.Write(section.BlockLight); err != nil {
+	if section.BlockLight != nil {
+		if err = binary.Write(out, binary.BigEndian, bool(true)); err != nil {
+			return
+		}
+
+		if _, err = out.Write(section.BlockLight); err != nil {
+			return
+		}
+	} else {
+		if err = binary.Write(out, binary.BigEndian, bool(false)); err != nil {
+			return
+		}
+	}
+
+	if section.SkyLight != nil {
+		if err = binary.Write(out, binary.BigEndian, bool(true)); err != nil {
+			return
+		}
+
+		if _, err = out.Write(section.SkyLight); err != nil {
+			return
+		}
+	} else {
+		if err = binary.Write(out, binary.BigEndian, bool(false)); err != nil {
+			return
+		}
+	}
+
+	if err = w.writeNbt(section.BlockStates, "block_states", out); err != nil {
 		return
 	}
-	if _, err = out.Write(section.SkyLight); err != nil {
+
+	if err = w.writeNbt(section.Biomes, "biomes", out); err != nil {
 		return
 	}
-	if err = w.writeCompressedNbt(section.BlockStates); err != nil {
-		return
-	}
-	if err = w.writeCompressedNbt(section.Biomes); err != nil {
-		return
-	}
-	if err = binary.Write(out, binary.BigEndian, uint16(0)); err != nil {
-		return
-	}
+
 	return
 }
 
@@ -151,8 +186,9 @@ func (w *slimeWriter) writeTileEntities() (err error) {
 	var compound struct {
 		Tiles []interface{} `nbt:"tiles"`
 	}
+
 	compound.Tiles = tileEntities
-	return w.writeCompressedNbt(compound)
+	return w.writeCompressedNbt(compound, "tiles")
 }
 
 func (w *slimeWriter) writeEntities() (err error) {
@@ -160,28 +196,39 @@ func (w *slimeWriter) writeEntities() (err error) {
 	for _, chunk := range w.world.chunks {
 		entities = append(entities, chunk.Entities...)
 	}
+
 	var compound struct {
 		Entities []interface{} `nbt:"entities"`
 	}
+
 	compound.Entities = entities
-	if _, err = w.writer.Write([]byte{1}); err != nil {
-		return
-	}
-	return w.writeCompressedNbt(compound)
+	return w.writeCompressedNbt(compound, "entities")
 }
 
-func (w *slimeWriter) writeCompressedNbt(compound interface{}) (err error) {
+func (w *slimeWriter) writeCompressedNbt(compound interface{}, tagName string) (err error) {
 	var buf bytes.Buffer
-	if err = nbt.NewEncoder(&buf).Encode(compound, ""); err != nil {
+	if err = nbt.NewEncoder(&buf).Encode(compound, tagName); err != nil {
 		return
 	}
 	return w.writeZstdCompressed(&buf)
 }
 
+func (w *slimeWriter) writeNbt(compound interface{}, tagName string, out io.Writer) (err error) {
+	var buf bytes.Buffer
+	if err = nbt.NewEncoder(&buf).Encode(compound, tagName); err != nil {
+		return
+	}
+	if err = binary.Write(out, binary.BigEndian, uint32(buf.Len())); err != nil {
+		return
+	}
+	_, err = buf.WriteTo(out)
+	return
+}
+
 func (w *slimeWriter) writeExtra() (err error) {
 	// Write empty NBT tag compound
 	var empty map[string]interface{}
-	return w.writeCompressedNbt(empty)
+	return w.writeCompressedNbt(empty, "extra")
 }
 
 func (world *AnvilWorld) getChunkKeys() []ChunkCoord {
