@@ -97,7 +97,7 @@ func tryToReadRegion(reader *AnvilReader) (*map[ChunkCoord]MinecraftChunk, error
 						cleanedSections = append(cleanedSections, section)
 
 						var blockStates map[string]interface{} = section.BlockStates.(map[string]interface{})
-						if blockStates["data"] != nil && len(blockStates["data"].([]int64)) == 256 {
+						if blockStates["data"] != nil && len(blockStates["data"].([]int64)) != 0 {
 							empty = false
 						}
 
@@ -117,13 +117,15 @@ func tryToReadRegion(reader *AnvilReader) (*map[ChunkCoord]MinecraftChunk, error
 				}
 
 				if empty {
-					// fmt.Printf("skipping chunk %d,%d as it is empty!\n", x, z)
+					// fmt.Printf("skipping chunk %d,%d in %s as it has an empty block palette!\n", x, z, reader.Name)
 					continue
 				}
 
 				coords := ChunkCoord{X: anvilChunkRoot.X, Z: anvilChunkRoot.Z}
 				byXZ[coords] = anvilChunkRoot
-			}
+			} /*else {
+				fmt.Printf("skipping empty chunk at %d,%d in %s!\n", x, z, reader.Name)
+			}*/
 		}
 	}
 	return &byXZ, nil
